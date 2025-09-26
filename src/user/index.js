@@ -19,6 +19,7 @@ User.reset = require('./reset');
 User.digest = require('./digest');
 User.interstitials = require('./interstitials');
 
+User.pin = require('./pin');
 require('./data')(User);
 require('./auth')(User);
 require('./bans')(User);
