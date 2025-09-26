@@ -361,6 +361,7 @@ postsAPI.getVoters = async function (caller, data) {
 	const repSystemDisabled = meta.config['reputation:disabled'];
 	const showUpvotes = canSeeUpvotes && !repSystemDisabled;
 	const showDownvotes = canSeeDownvotes && !meta.config['downvote:disabled'] && !repSystemDisabled;
+	// const showDownvotes = canSeeDownvotes && !repSystemDisabled;
 	const [upvoteUids, downvoteUids] = await Promise.all([
 		showUpvotes ? db.getSetMembers(`pid:${data.pid}:upvote`) : [],
 		showDownvotes ? db.getSetMembers(`pid:${data.pid}:downvote`) : [],
@@ -393,6 +394,20 @@ postsAPI.getUpvoters = async function (caller, data) {
 
 	const upvotedUids = (await posts.getUpvotedUidsByPids([pid]))[0];
 	return await getTooltipData(upvotedUids);
+};
+
+postsAPI.getDownvoters = async function (caller, data) {
+	if (!data.pid) {
+		throw new Error('[[error:invalid-data]]');
+	}
+	const { pid } = data;
+	const cid = await posts.getCidByPid(pid);
+	if (!await canSeeVotes(caller.uid, cid, 'downvoteVisibility')) {
+		throw new Error('[[error:no-privileges]]');
+	}
+
+	const downvotedUids = (await posts.getDownvotedUidsByPids([pid]))[0];
+	return await getTooltipData(downvotedUids);
 };
 
 async function getTooltipData(uids) {

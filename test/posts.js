@@ -198,6 +198,14 @@ describe('Post\'s', () => {
 			await privileges.categories.give(['groups:topics:read'], cid, 'guests');
 		});
 
+		it('should fail to get downvoters if user does not have read privilege', async () => {
+			await privileges.categories.rescind(['groups:topics:read'], cid, 'guests');
+			await assert.rejects(socketPosts.getDownvoters({ uid: 0 }, [postData.pid]), {
+				message: '[[error:no-privileges]]',
+			});
+			await privileges.categories.give(['groups:topics:read'], cid, 'guests');
+		});
+
 		it('should unvote a post', async () => {
 			const result = await apiPosts.unvote({ uid: voterUid }, { pid: postData.pid, room_id: 'topic_1' });
 			assert.equal(result.post.upvotes, 0);
@@ -220,6 +228,14 @@ describe('Post\'s', () => {
 			assert.equal(data.downvoted, true);
 		});
 
+		it('should get downvoters', (done) => {
+			socketPosts.getDownvoters({ uid: globalModUid }, [postData.pid], (err, data) => {
+				assert.ifError(err);
+				assert.equal(data.otherCount, 0);
+				assert.equal(data.usernames, 'downvoter');
+				done();
+			});
+		});
 		it('should add the pid to the :votes sorted set for that user', async () => {
 			const cid = await posts.getCidByPid(postData.pid);
 			const { uid, pid } = postData;

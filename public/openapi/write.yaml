@@ -188,6 +188,8 @@ paths:
     $ref: 'write/posts/pid/voters.yaml'
   /posts/{pid}/upvoters:
     $ref: 'write/posts/pid/upvoters.yaml'
+  /posts/{pid}/downvoters:
+    $ref: 'write/posts/pid/downvoters.yaml'
   /posts/{pid}/announcers:
     $ref: 'write/posts/pid/announcers.yaml'
   /posts/{pid}/announcers/tooltip:
