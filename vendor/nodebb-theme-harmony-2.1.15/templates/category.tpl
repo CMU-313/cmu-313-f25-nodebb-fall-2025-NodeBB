@@ -38,6 +38,8 @@
 		<i class="fa fa-search"></i>
 	</button>
 </form>
+<!-- search result display within the category -->
+<div id="category-search-results" class="mt-3"></div>
 
 
 {{{ if widgets.header.length }}}
