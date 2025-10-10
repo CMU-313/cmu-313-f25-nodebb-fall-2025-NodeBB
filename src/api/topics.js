@@ -146,11 +146,23 @@ topicsAPI.purge = async function (caller, data) {
 	});
 };
 
+topicsAPI.private = async function (caller, { tids }) {
+	await doTopicAction('private', 'event:topic_private', caller, { tids });
+};
+
+topicsAPI.unprivate = async function (caller, { tids }) {
+	await doTopicAction('unprivate', 'event:topic_unprivate', caller, { tids });
+};
+
+
+// here could be when we pin a post
 topicsAPI.pin = async function (caller, { tids, expiry }) {
 	await doTopicAction('pin', 'event:topic_pinned', caller, { tids });
-
-	if (expiry) {
+	
+	// expiry is the timestamp that the "pinned" status will disappear.
+	if (expiry) { // If "expiry" is not NULL
 		await Promise.all(tids.map(async tid => topics.tools.setPinExpiry(tid, expiry, caller.uid)));
+
 	}
 };
 

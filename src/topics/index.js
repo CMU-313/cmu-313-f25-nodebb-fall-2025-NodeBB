@@ -27,6 +27,7 @@ require('./fork')(Topics);
 require('./posts')(Topics);
 require('./follow')(Topics);
 require('./tags')(Topics);
+require('./search')(Topics);
 require('./teaser')(Topics);
 Topics.scheduled = require('./scheduled');
 require('./suggested')(Topics);
@@ -154,7 +155,17 @@ Topics.getTopicsByTids = async function (tids, options) {
 
 	const filteredTopics = result.topics.filter(topic => topic && topic.category && !topic.category.disabled);
 
-	const hookResult = await plugins.hooks.fire('filter:topics.get', { topics: filteredTopics, uid: uid });
+
+	// MKWEE ISSUE #12: FILTER OUT PRIVATE TOPICS
+	// HIDES TOPICS
+	const isAdmin = await user.isAdministrator(uid);
+	const finalTopics = filteredTopics.filter((topic) => {
+		return !topic.private || isAdmin || topic.isOwner;
+	});
+
+	const hookResult = await plugins.hooks.fire('filter:topics.get', { topics: finalTopics, uid: uid });
+	// END MKWEE ISSUE #12
+
 	return hookResult.topics;
 };
 

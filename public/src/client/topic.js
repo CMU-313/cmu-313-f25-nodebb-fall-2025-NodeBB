@@ -77,6 +77,26 @@ define('forum/topic', [
 		hooks.fire('action:topic.loaded', ajaxify.data);
 	};
 
+	//attempt to put pivate toggle here
+
+	//<div class="composer-footer">
+	//   <button class="composer-hide">Hide</button>
+	//   <button class="composer-discard">Discard</button>
+
+	//   <label class="composer-private">
+	//     <input type="checkbox" id="private-toggle">
+	//     Private
+	//   </label>
+
+	//   <button class="composer-submit">Submit</button>
+	// </div>
+
+	// {{{ if topic.isPrivate }}}
+	// <span class="badge badge-warning">Private</span>
+	// {{{ end }}}
+
+
+
 	function handleTopicSearch() {
 		require(['mousetrap'], (mousetrap) => {
 			if (config.topicSearchEnabled) {
