@@ -13,7 +13,7 @@ const intFields = [
 	'viewcount', 'postercount', 'followercount',
 	'deleted', 'locked', 'pinned', 'pinExpiry',
 	'timestamp', 'upvotes', 'downvotes',
-	'lastposttime', 'deleterUid',
+	'lastposttime', 'deleterUid', 'private',
 ];
 
 module.exports = function (Topics) {
@@ -139,5 +139,11 @@ function modifyTopic(topic, fields) {
 				class: escaped.replace(/\s/g, '-'),
 			};
 		});
+	}
+
+	if (topic.hasOwnProperty('private')) {
+		// convert redis string/ num values to boolean
+		// need to handle string values
+		topic.private = topic.private === 1 || topic.private === '1' || topic.private === true || topic.private === 'true';
 	}
 }
