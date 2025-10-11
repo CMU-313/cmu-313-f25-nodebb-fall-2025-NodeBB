@@ -37,6 +37,16 @@ describe('API', async () => {
 	let setup = false;
 	const unauthenticatedRoutes = ['/api/login', '/api/register']; // Everything else will be called with the admin user
 
+	before(async () => {
+		// Attach an emailer hook so related requests do not error
+		plugins.hooks.register('emailer-test', {
+			hook: 'static:email.send',
+			method: async () => {
+				// pretend to handle sending emails
+			},
+		});
+	});
+
 	const mocks = {
 		head: {},
 		get: {
@@ -170,9 +180,6 @@ describe('API', async () => {
 	async function dummySearchHook(data) {
 		return [1];
 	}
-	async function dummyEmailerHook(data) {
-		// pretend to handle sending emails
-	}
 
 	after(async () => {
 		plugins.hooks.unregister('core', 'filter:search.query', dummySearchHook);
@@ -277,6 +284,14 @@ describe('API', async () => {
 		mocks.delete['/posts/{pid}/diffs/{timestamp}'][0].example = unprivTopic.postData.pid;
 		mocks.delete['/posts/{pid}/diffs/{timestamp}'][1].example = (await posts.diffs.list(unprivTopic.postData.pid))[0];
 
+		// Create a test poll
+		const Polls = require('../src/polls');
+		const pollData = {
+			title: 'Test Poll for API',
+			options: ['Option A', 'Option B', 'Option C'],
+		};
+		const pollId = await Polls.create(pollData, adminUid);
+
 		// Create a sample flag
 		const { flagId } = await flags.create('post', 1, unprivUid, 'sample reasons', Date.now()); // deleted in DELETE /api/v3/flags/1
 		await flags.appendNote(flagId, 1, 'test note', 1626446956652);
@@ -305,11 +320,6 @@ describe('API', async () => {
 		plugins.hooks.register('core', {
 			hook: 'filter:search.query',
 			method: dummySearchHook,
-		});
-		// Attach an emailer hook so related requests do not error
-		plugins.hooks.register('emailer-test', {
-			hook: 'static:email.send',
-			method: dummyEmailerHook,
 		});
 
 		// All tests run as admin user

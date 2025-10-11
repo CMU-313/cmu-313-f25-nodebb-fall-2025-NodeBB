@@ -148,6 +148,8 @@ paths:
     $ref: 'write/topics/tid/lock.yaml'
   /topics/{tid}/pin:
     $ref: 'write/topics/tid/pin.yaml'
+  /topics/{tid}/preview:
+    $ref: 'write/topics/tid/preview.yaml'
   /topics/{tid}/follow:
     $ref: 'write/topics/tid/follow.yaml'
   /topics/{tid}/ignore:
@@ -274,3 +276,13 @@ paths:
     $ref: 'write/files.yaml'
   /files/folder:
     $ref: 'write/files/folder.yaml'
+  /polls/:
+    $ref: 'write/polls.yaml'
+  /polls/{pollId}:
+    $ref: 'write/polls/pollId.yaml'
+  /polls/{pollId}/vote:
+    $ref: 'write/polls/pollId/vote.yaml'
+  /polls/{pollId}/close:
+    $ref: 'write/polls/pollId/close.yaml'
+  /polls/{pollId}/reopen:
+    $ref: 'write/polls/pollId/reopen.yaml'

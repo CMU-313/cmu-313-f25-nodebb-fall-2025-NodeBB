@@ -2,6 +2,7 @@
 
 const db = require('../database');
 const topics = require('../topics');
+const MAX_PREVIEW_LENGTH = 500; // Adjust as needed
 const plugins = require('../plugins');
 const meta = require('../meta');
 const privileges = require('../privileges');
@@ -22,6 +23,68 @@ module.exports = function (Categories) {
 			return { topics: [], uid: data.uid };
 		}
 		topics.calculateTopicIndices(topicsData, data.start);
+
+		// Fetch content previews for pinned topics
+		const pinnedTids = await Categories.getPinnedTids({ cid: data.cid, start: 0, stop: -1 });
+		const pinnedTidSet = new Set(pinnedTids);
+		const pinnedTopics = topicsData.filter(topic => pinnedTidSet.has(String(topic.tid)));
+		const pinnedTopicIds = pinnedTopics.map(topic => String(topic.tid));
+
+		let mainPosts = [];
+		const tidToShowPreview = {};
+		if (pinnedTopicIds.length) {
+			mainPosts = await topics.getMainPosts(pinnedTopicIds, data.uid);
+
+			// Fetch persisted per-topic showPreview flags; default to showing previews unless explicitly disabled (0)
+			const showPreviewFields = await topics.getTopicsFields(pinnedTopicIds, ['showPreview']);
+			showPreviewFields.forEach((obj, idx) => {
+				if (obj && Object.prototype.hasOwnProperty.call(obj, 'showPreview')) {
+					tidToShowPreview[String(pinnedTopicIds[idx])] = Number(obj.showPreview) !== 0;
+				} else {
+					// default: show previews
+					tidToShowPreview[String(pinnedTopicIds[idx])] = true;
+				}
+			});
+		}
+
+		const tidToPreview = {};
+		mainPosts.forEach((post) => {
+			if (!post) { return; }
+			let content = '';
+			if (post.content && String(post.content).trim().length) {
+				content = String(post.content);
+			} else if (post.sourceContent && String(post.sourceContent).trim().length) {
+				content = String(post.sourceContent);
+			}
+			if (content) {
+				const text = utils.stripHTMLTags(content, utils.stripTags).trim();
+				tidToPreview[String(post.tid)] = text.length ? ((text.length > MAX_PREVIEW_LENGTH) ? (text.slice(0, MAX_PREVIEW_LENGTH) + '...') : text) : null;
+			}
+		});
+
+		topicsData.forEach((topic) => {
+			if (pinnedTidSet.has(String(topic.tid))) {
+				const allowed = tidToShowPreview[String(topic.tid)];
+				if (allowed) {
+					let preview = tidToPreview[String(topic.tid)];
+					// Fallback to teaser content if main post content not available
+					if ((preview === undefined || preview === null || preview === '') && topic.teaser && topic.teaser.content) {
+						const t = String(topic.teaser.content);
+						const text = utils.stripHTMLTags(t, utils.stripTags).trim();
+						preview = text.length ? (text.length > MAX_PREVIEW_LENGTH ? (text.slice(0, MAX_PREVIEW_LENGTH) + '...') : text) : null;
+					}
+					if (preview === undefined || preview === null || preview === '') {
+						// Populate a placeholder so UI never renders an empty preview block
+						topic.contentPreview = 'No preview available';
+					} else {
+						topic.contentPreview = preview;
+					}
+					topic.showPreview = true;
+				} else {
+					topic.showPreview = false;
+				}
+			}
+		});
 
 		results = await plugins.hooks.fire('filter:category.topics.get', { cid: data.cid, topics: topicsData, uid: data.uid });
 		return { topics: results.topics, nextStart: data.stop + 1 };
