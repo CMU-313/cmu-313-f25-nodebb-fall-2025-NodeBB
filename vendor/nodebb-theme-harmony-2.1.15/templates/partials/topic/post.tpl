@@ -43,7 +43,14 @@
 						</a>
 					</div>
 
-					<a class="fw-bold text-nowrap text-truncate" href="{{{ if ./user.userslug }}}{config.relative_path}/user/{./user.userslug}{{{ else }}}#{{{ end }}}" data-username="{posts.user.username}" data-uid="{posts.user.uid}">{posts.user.displayname}</a>
+					<a class="fw-bold text-nowrap text-truncate" href="{{{ if ./user.userslug }}}{config.relative_path}/user/{./user.userslug}{{{ else }}}#{{{ end }}}" data-username="{posts.user.username}" data-uid="{posts.user.uid}">
+						{{{ if ./isAnonymous }}}
+						Anonymous
+						<i class="fa fa-user-secret text-muted ms-1" title="[[topic:anonymous-post]]" data-bs-toggle="tooltip"></i>
+						{{{ else }}}
+						{posts.user.displayname}
+						{{{ end }}}
+					</a>
 				</div>
 
 				{{{ each posts.user.selectedGroups }}}
@@ -54,6 +61,13 @@
 
 				{{{ if posts.user.banned }}}
 				<span class="badge bg-danger rounded-1">[[user:banned]]</span>
+				{{{ end }}}
+
+				{{{ if ./isAnonymous }}}
+				<div class="staff-anonymous-info d-flex align-items-center gap-1 text-muted small {{{ if !privileges.isAdminOrMod }}}hidden{{{ end }}}">
+					<i class="fa fa-eye text-warning" title="[[topic:staff-view]]"></i>
+					<span>[[topic:real-author]]: <strong>{./realUser.displayname}</strong></span>
+				</div>
 				{{{ end }}}
 
 				<div class="d-flex gap-1 align-items-center">
@@ -76,6 +90,7 @@
 			</div>
 			<div class="d-flex align-items-center gap-1 justify-content-end">
 				<span class="bookmarked opacity-0 text-primary"><i class="fa fa-bookmark-o"></i></span>
+				<span class="endorsed post-indicator {{{ if !posts.endorsed }}}hidden{{{ end }}}" title="The instructor / admin has endorsed this post!"><i class="fa fa-check-circle"></i></span>
 				<a href="{config.relative_path}/post/{encodeURIComponent(./pid)}" class="post-index text-muted d-none d-md-inline">#{increment(./index, "1")}</a>
 			</div>
 		</div>
@@ -109,6 +124,15 @@
 				{{{ end }}}
 				<div component="post/actions" class="d-flex flex-grow-1 align-items-center justify-content-end gap-1 post-tools">
 					<!-- IMPORT partials/topic/reactions.tpl -->
+					<!-- TODO : replace 'post-endorsed' attr variable after post field created -->
+					{{{ if privileges.isAdminOrMod }}}
+						<a component="post/unendorse" href="#" class="btn btn-ghost btn-sm {{{ if !posts.endorsed }}}hidden{{{ end }}}" title="Un-endorse this post" posts-endorsed="{posts.endorsed}">
+							<i class="fa fa-fw fa-star-o text-primary"></i>
+						</a>
+						<a component="post/endorse" href="#" class="btn btn-ghost btn-sm {{{ if posts.endorsed }}}hidden{{{ end }}}" title="Endorse this post" posts-endorsed="{posts.endorsed}">
+							<i class="fa fa-fw fa-star text-primary"></i>
+						</a>
+					{{{ end }}}
 					<a component="post/reply" href="#" class="btn btn-ghost btn-sm {{{ if !privileges.topics:reply }}}hidden{{{ end }}}" title="[[topic:reply]]"><i class="fa fa-fw fa-reply text-primary"></i></a>
 					<a component="post/quote" href="#" class="btn btn-ghost btn-sm {{{ if !privileges.topics:reply }}}hidden{{{ end }}}" title="[[topic:quote]]"><i class="fa fa-fw fa-quote-right text-primary"></i></a>
 

@@ -121,12 +121,14 @@ module.exports = function (Topics) {
 		const [
 			bookmarks,
 			voteData,
+			endorsements,
 			userData,
 			editors,
 			replies,
 		] = await Promise.all([
 			posts.hasBookmarked(pids, uid),
 			posts.getVoteStatusByPostIDs(pids, uid),
+			posts.hasEndorsed(pids, uid),
 			getPostUserData('uid', async uids => await posts.getUserInfoForPosts(uids, uid)),
 			getPostUserData('editor', async uids => await user.getUsersFields(uids, ['uid', 'username', 'userslug'])),
 			getPostReplies(postData, uid),
@@ -138,11 +140,28 @@ module.exports = function (Topics) {
 				postObj.user = postObj.uid ? userData[postObj.uid] : { ...userData[postObj.uid] };
 				postObj.editor = postObj.editor ? editors[postObj.editor] : null;
 				postObj.bookmarked = bookmarks[i];
+				postObj.endorsed = endorsements[i];
 				postObj.upvoted = voteData.upvotes[i];
 				postObj.downvoted = voteData.downvotes[i];
 				postObj.votes = postObj.votes || 0;
 				postObj.replies = replies[i];
 				postObj.selfPost = parseInt(uid, 10) > 0 && parseInt(uid, 10) === postObj.uid;
+
+				// Handle anonymous posts - mask user information
+				postObj.isAnonymous = postObj.isAnonymous === 1;
+				if (postObj.isAnonymous && postObj.user) {
+					// Store original user data for internal use (admins/mods may need to see this)
+					postObj.originalUser = { ...postObj.user };
+					// Mask the user information for public display
+					postObj.user = {
+						uid: postObj.user.uid, // Keep uid for internal linking
+						username: 'Anonymous',
+						userslug: null,
+						picture: null,
+						status: 'offline',
+						displayname: 'Anonymous',
+					};
+				}
 
 				// Username override for guests, if enabled
 				if (meta.config.allowGuestHandles && postObj.uid === 0 && postObj.handle) {

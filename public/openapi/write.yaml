@@ -140,6 +140,8 @@ paths:
     $ref: 'write/categories/cid/follow.yaml'
   /topics/:
     $ref: 'write/topics.yaml'
+  /topics/search:
+    $ref: 'write/topics/search.yaml'
   /topics/{tid}:
     $ref: 'write/topics/tid.yaml'
   /topics/{tid}/state:
@@ -194,6 +196,8 @@ paths:
     $ref: 'write/posts/pid/announcers-tooltip.yaml'
   /posts/{pid}/bookmark:
     $ref: 'write/posts/pid/bookmark.yaml'
+  /posts/{pid}/endorse:
+    $ref: 'write/posts/pid/endorse.yaml'
   /posts/{pid}/diffs:
     $ref: 'write/posts/pid/diffs.yaml'
   /posts/{pid}/diffs/{since}:
