@@ -11,6 +11,7 @@ const privileges = require('../privileges');
 const events = require('../events');
 const batch = require('../batch');
 const activitypub = require('../activitypub');
+const anonymous = require('../anonymous');
 
 const activitypubApi = require('./activitypub');
 const apiHelpers = require('./helpers');
@@ -79,7 +80,14 @@ topicsAPI.create = async function (caller, data) {
 		return await posts.addToQueue(payload);
 	}
 
-	const result = await topics.post(payload);
+	// Handle anonymous posting
+	let result;
+	if (data.anonymous && anonymous.isEnabled()) {
+		result = await anonymous.createTopic(payload);
+	} else {
+		result = await topics.post(payload);
+	}
+	
 	await topics.thumbs.migrate(data.uuid, result.topicData.tid);
 
 	socketHelpers.emitToUids('event:new_post', { posts: [result.postData] }, [caller.uid]);
@@ -107,7 +115,13 @@ topicsAPI.reply = async function (caller, data) {
 		return await posts.addToQueue(payload);
 	}
 
-	const postData = await topics.reply(payload);
+	// Handle anonymous posting
+	let postData;
+	if (data.anonymous && anonymous.isEnabled()) {
+		postData = await anonymous.createReply(payload);
+	} else {
+		postData = await topics.reply(payload);
+	}
 
 	const result = {
 		posts: [postData],
@@ -356,4 +370,48 @@ topicsAPI.move = async (caller, { tid, cid }) => {
 	}, { batch: 10 });
 
 	await categories.onTopicsMoved(cids);
+};
+
+topicsAPI.userPin = async function (caller, data) {
+	if (!caller.uid) {
+		throw new Error('[[error:not-logged-in]]');
+	}
+	
+	if (!data || !data.pid) {
+		throw new Error('[[error:invalid-data]]');
+	}
+
+	const postData = await posts.getPostData(data.pid);
+	if (!postData) {
+		throw new Error('[[error:no-post]]');
+	}
+
+	// Check if user can read the post
+	const userPrivileges = await privileges.posts.get([data.pid], caller.uid);
+	const userPrivilege = userPrivileges[0];
+	if (!userPrivilege || !userPrivilege.read || !userPrivilege['topics:read']) {
+		throw new Error('[[error:no-privileges]]');
+	}
+
+	// Add post to user's pinned posts
+	const db = require('../database');
+	await db.sortedSetAdd(`uid:${caller.uid}:pinned_posts`, Date.now(), data.pid);
+
+	return { pid: data.pid, pinned: true };
+};
+
+topicsAPI.userUnpin = async function (caller, data) {
+	if (!caller.uid) {
+		throw new Error('[[error:not-logged-in]]');
+	}
+	
+	if (!data || !data.pid) {
+		throw new Error('[[error:invalid-data]]');
+	}
+
+	// Remove post from user's pinned posts
+	const db = require('../database');
+	await db.sortedSetRemove(`uid:${caller.uid}:pinned_posts`, data.pid);
+
+	return { pid: data.pid, pinned: false };
 };

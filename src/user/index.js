@@ -18,6 +18,7 @@ User.notifications = require('./notifications');
 User.reset = require('./reset');
 User.digest = require('./digest');
 User.interstitials = require('./interstitials');
+User.pin = require('./pins');
 
 require('./data')(User);
 require('./auth')(User);
