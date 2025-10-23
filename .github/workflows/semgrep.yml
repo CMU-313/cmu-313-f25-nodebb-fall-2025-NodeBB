@@ -1,0 +1,31 @@
+name: Semgrep Scan
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  semgrep:
+    name: Run Semgrep Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python (Semgrep requires it)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Semgrep
+        run: |
+          pip install semgrep
+
+      - name: Run Semgrep scan
+        run: |
+          semgrep ci
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.f10f68a6e6d73726b7e8b8ace50ffce7c7be500044595c7eeae2c727e042a1da }}
