@@ -16,6 +16,7 @@ const helpers = require('./helpers');
 const utils = require('../utils');
 const translator = require('../translator');
 const analytics = require('../analytics');
+const groups = require('../groups');
 
 const categoryController = module.exports;
 
@@ -27,6 +28,30 @@ const validSorts = [
 
 categoryController.get = async function (req, res, next) {
 	let cid = req.params.category_id;
+
+	// Synthetic "View All" category: aggregate topics across all categories
+	if (String(cid) === 'all') {
+		try {
+			const recent = require('./recent');
+			const data = await recent.getData(req, 'recent', 'recent');
+			if (!data) {
+				return next();
+			}
+			// Title/breadcrumbs when accessed via category URL
+			data.title = 'View All';
+			data.breadcrumbs = helpers.buildBreadcrumbs([{ text: 'View All' }]);
+			if (Array.isArray(data.viewAllList)) {
+				data.viewAllList = data.viewAllList.map(item => ({
+					...item,
+					handle: item.handle || 'viewall',
+				}));
+			}
+	
+			return res.render('recent', data);
+		} catch (err) {
+			return next(err);
+		}
+	}
 	if (cid === '-1') {
 		return helpers.redirect(res, `${res.locals.isAPI ? '/api' : ''}/world?${qs.stringify(req.query)}`);
 	}
@@ -87,6 +112,7 @@ categoryController.get = async function (req, res, next) {
 	}
 
 	const targetUid = await user.getUidByUserslug(req.query.author);
+	const courseStaffUids = await getCourseStaffUids(req.query.courseStaff);
 	const start = ((currentPage - 1) * userSettings.topicsPerPage) + topicIndex;
 	const stop = start + userSettings.topicsPerPage - 1;
 
@@ -102,6 +128,7 @@ categoryController.get = async function (req, res, next) {
 		query: req.query,
 		tag: req.query.tag,
 		targetUid: targetUid,
+		courseStaffUids: courseStaffUids,
 	});
 	if (!categoryData) {
 		return next();
@@ -149,7 +176,14 @@ categoryController.get = async function (req, res, next) {
 	categoryData.topicIndex = topicIndex;
 	categoryData.selectedTag = tagData.selectedTag;
 	categoryData.selectedTags = tagData.selectedTags;
-	categoryData.sortOptionLabel = `[[topic:${validator.escape(String(sort)).replace(/_/g, '-')}]]`;
+	let sortOptionKey;
+	if ((req.query && req.query.filter === 'endorsed') || req._wasSortEndorsed || req._wasUserDefaultEndorsed) {
+		sortOptionKey = 'endorsed';
+	} else {
+		sortOptionKey = validator.escape(String(sort)).replace(/_/g, '-');
+	}
+
+	categoryData.sortOptionLabel = `[[topic:${sortOptionKey}]]`;
 
 	if (!meta.config['feeds:disableRSS']) {
 		categoryData.rssFeedUrl = `${url}/category/${categoryData.cid}.rss`;
@@ -181,6 +215,7 @@ categoryController.get = async function (req, res, next) {
 		}
 	}
 
+	categoryData.query = req.query;
 	res.render('category', categoryData);
 };
 
@@ -259,5 +294,17 @@ function addTags(categoryData, res, currentPage) {
 			type: 'application/activity+json',
 			href: `${nconf.get('url')}/actegory/${categoryData.cid}`,
 		});
+	}
+}
+
+async function getCourseStaffUids(filterValue) {
+	if (filterValue !== '1') {
+		return null;
+	}
+	try {
+		const sets = await groups.getMembersOfGroups(['course-staff']);
+		return Array.isArray(sets) && sets.length ? sets[0] : [];
+	} catch (err) {
+		return [];
 	}
 }

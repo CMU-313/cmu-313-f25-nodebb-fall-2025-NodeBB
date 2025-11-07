@@ -14,6 +14,8 @@ const utils = require('../utils');
 module.exports = function (Posts) {
 	Posts.create = async function (data) {
 		// This is an internal method, consider using Topics.reply instead
+		console.log('newpost being created');
+		data.resolved = false;
 		const { uid, tid, _activitypub, sourceContent } = data;
 		const content = data.content.toString();
 		const timestamp = data.timestamp || Date.now();
@@ -28,7 +30,8 @@ module.exports = function (Posts) {
 		}
 
 		const pid = data.pid || await db.incrObjectField('global', 'nextPid');
-		let postData = { pid, uid, tid, content, sourceContent, timestamp };
+		// add default endorsed status data field
+		let postData = { pid, uid, tid, content, sourceContent, timestamp, endorsed:false};
 
 		if (data.toPid) {
 			postData.toPid = data.toPid;

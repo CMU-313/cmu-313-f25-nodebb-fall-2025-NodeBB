@@ -2,6 +2,7 @@ version: '3.8'
 
 services:
   nodebb:
+    user: "0"
     build: .
     # image: ghcr.io/nodebb/nodebb:latest
     restart: unless-stopped
@@ -12,6 +13,11 @@ services:
       - nodebb-uploads:/usr/src/app/public/uploads
       - nodebb-config:/opt/config
       - ./install/docker/setup.json:/usr/src/app/setup.json
+    environment:
+      MAILGUN_API_KEY: ${MAILGUN_API_KEY}
+      MAILGUN_DOMAIN: ${MAILGUN_DOMAIN}
+    depends_on:
+      - redis
 
   redis:
     image: redis:8.0.1-alpine

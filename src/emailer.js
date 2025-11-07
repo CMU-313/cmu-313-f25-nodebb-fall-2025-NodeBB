@@ -23,6 +23,26 @@ const file = require('./file');
 const viewsDir = nconf.get('views_dir');
 const Emailer = module.exports;
 
+// custom plugin code to send emails via Mailgun API
+const mailgunSender = require('../nodebb-plugin-mailgun-delivery/library.js');
+
+// Helper to create a robust, human-friendly error string for email sends
+function formatEmailErr(err) {
+	if (!err) {
+		return 'Unknown error (no error object)';
+	}
+	if (err instanceof Error) {
+		return err.stack || err.message || String(err);
+	}
+	try {
+		const serialized = typeof err === 'string' ? err : JSON.stringify(err);
+		return serialized;
+	} catch (e) {
+		return String(err);
+	}
+}
+Emailer.formatEmailErr = formatEmailErr;
+
 let prevConfig;
 let app;
 
@@ -224,6 +244,12 @@ Emailer.send = async (template, uid, params) => {
 	}
 
 	let userData = await User.getUserFields(uid, ['email', 'username', 'email:confirmed', 'banned']);
+	
+	if (!userData) {
+		throw new Error(`No user found for uid ${uid}`);
+	} else {
+		console.log('Emailer.send called', userData);
+	}
 
 	// 'welcome' and 'verify-email' explicitly used passed-in email address
 	if (['welcome', 'verify-email'].includes(template)) {
@@ -281,6 +307,8 @@ Emailer.send = async (template, uid, params) => {
 };
 
 Emailer.sendToEmail = async (template, email, language, params) => {
+	console.log('SendToEmail called:', {email, params });
+
 	const lang = language || meta.config.defaultLang || 'en-GB';
 	const unsubscribable = ['digest', 'notification'];
 
@@ -360,17 +388,57 @@ Emailer.sendToEmail = async (template, email, language, params) => {
 };
 
 Emailer.sendViaFallback = async (data) => {
-	// Some minor alterations to the data to conform to nodemailer standard
-	data.text = data.plaintext;
-	delete data.plaintext;
+	console.log('[core-emailer] Redirecting email via Mailgun instead of sendmail');
 
-	// use an address object https://nodemailer.com/message/addresses/
-	data.from = {
-		name: data.from_name,
-		address: data.from,
-	};
-	delete data.from_name;
-	await Emailer.fallbackTransport.sendMail(data);
+	// use an address object for nodemailer, but Mailgun HTTP API expects `from` to be a string
+	// so build a sanitized copy for the Mailgun plugin and avoid mutating the original `data`.
+	const mailgunData = { ...data };
+
+	// Ensure 'from' is a string Mailgun can parse: "Name <address>" or plain address
+	if (data.from_name) {
+		const fromAddr = (typeof data.from === 'object' && data.from.address) ? data.from.address : data.from;
+		mailgunData.from = `"${data.from_name}" <${fromAddr}>`;
+	} else if (typeof data.from === 'object' && data.from.address) {
+		mailgunData.from = data.from.address;
+	} else {
+		mailgunData.from = data.from;
+	}
+	delete mailgunData.from_name;
+
+	// Ensure plaintext/text is present (some hooks use `plaintext`)
+	if (!mailgunData.text && mailgunData.plaintext) {
+		mailgunData.text = mailgunData.plaintext;
+		delete mailgunData.plaintext;
+	}
+
+	// Normalize headers to strings so Mailgun API doesn't receive objects
+	if (mailgunData.headers) {
+		for (const [k, v] of Object.entries(mailgunData.headers)) {
+			if (v === undefined || v === null) {
+				mailgunData.headers[k] = '';
+			} else if (typeof v !== 'string') {
+				try {
+					mailgunData.headers[k] = JSON.stringify(v);
+				} catch (e) {
+					mailgunData.headers[k] = String(v);
+				}
+			}
+		}
+	}
+
+	// Call the plugin which should return/resolves on success or throw/reject on failure
+	try {
+		const result = await mailgunSender.sendViaMailgun(mailgunData);
+		return result;
+	} catch (err) {
+		// Always wrap into an Error, but use formatEmailErr to normalize message
+		const normalized = err instanceof Error ? err : new Error(`Mailgun send failed: ${formatEmailErr(err)}`);
+
+		// Keep original attached for debugging
+		normalized.originalError = err;
+
+		throw normalized;
+	}
 };
 
 Emailer.renderAndTranslate = async (template, params, lang) => {

@@ -68,10 +68,16 @@ coverage
 test/files/normalise.jpg.png
 test/files/normalise-resized.jpg
 package-lock.json
-/package.json
+# /package.json
 *.mongodb
 link-plugins.sh
 test.sh
 
 .docker/**
 !**/.gitkeep
+
+# added by Cici
+/build/public
+.env
+/build/
+/build/!export

@@ -3,6 +3,9 @@
 		<!-- IMPORT admin/partials/dashboard/graph.tpl -->
 		<!-- IMPORT admin/partials/dashboard/stats.tpl -->
 
+		<div class="card-header text-start mb-2">
+			<a href="/admin/dashboard/user-activity">User Activity</a>
+		</div>
 		<div class="table-responsive">
 			<table class="table users-list text-sm">
 				<thead>
@@ -14,7 +17,7 @@
 				<tbody>
 					{{{ if !users.length}}}
 					<tr>
-						<td colspan=4" class="text-center"><em>[[admin/dashboard:details.no-users]]</em></td>
+						<td colspan=4 class="text-center"><em>[[admin/dashboard:details.no-users]]</em></td>
 					</tr>
 					{{{ end }}}
 					{{{ each users }}}

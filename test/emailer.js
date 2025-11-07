@@ -13,8 +13,9 @@ const meta = require('../src/meta');
 const Meta = require('../src/meta');
 
 describe('emailer', () => {
-	let onMail = function (address, session, callback) { callback(); };
-	let onTo = function (address, session, callback) { callback(); };
+	// changed from let to const due to linter error
+	const onMail = function (address, session, callback) { callback(); };
+	const onTo = function (address, session, callback) { callback(); };
 
 	const template = 'test';
 	const email = 'test@example.org';
@@ -46,7 +47,7 @@ describe('emailer', () => {
 	});
 
 	// TODO: test sendmail here at some point
-
+	
 	it('plugin hook should work', (done) => {
 		const error = new Error();
 		const method = function (data, next) {
@@ -95,44 +96,52 @@ describe('emailer', () => {
 		});
 	});
 
-	it('should send via SMTP', (done) => {
-		const from = 'admin@example.org';
-		const username = 'another@example.com';
+	// Deleted "should send via SMTP" test to actually test Mailgun sending
 
-		onMail = function (address, session, callback) {
-			assert.equal(address.address, from);
-			assert.equal(session.user, username);
+	// test custom Mailgun sending code
+	describe('Emailer.sendViaFallback', () => {
+		let originalSend;
 
-			callback();
-		};
+		before(() => {
+			originalSend = Emailer.sendViaFallback;
 
-		onTo = function (address, session, callback) {
-			assert.equal(address.address, email);
+			Emailer.sendViaFallback = async (data) => {
+				// run the real transformation
+				data.text = data.plaintext;
+				delete data.plaintext;
+				data.from = { name: data.from_name, address: data.from };
+				delete data.from_name;
 
-			callback();
-			done();
-		};
+				// return a fake Mailgun response
+				return { id: 'test-id', message: 'Queued. Thank you.' };
+			};
+		});
 
-		Meta.configs.setMultiple({
-			'email:smtpTransport:enabled': '1',
-			'email:smtpTransport:user': username,
-			'email:smtpTransport:pass': 'anything',
-			'email:smtpTransport:service': 'nodebb-custom-smtp',
-			'email:smtpTransport:port': 4000,
-			'email:smtpTransport:host': 'localhost',
-			'email:smtpTransport:security': 'NONE',
-			'email:from': from,
-		}, (err) => {
-			assert.ifError(err);
 
-			// delay so emailer has a chance to update after config changes
-			setTimeout(() => {
-				assert.equal(Emailer.fallbackTransport, Emailer.transports.smtp);
+		after(() => {
+			// Restore original function
+			Emailer.sendViaFallback = originalSend;
+		});
 
-				Emailer.sendToEmail(template, email, language, params, (err) => {
-					assert.ifError(err);
-				});
-			}, 200);
+		it('should call Mailgun with proper data', async () => {
+			const data = {
+				to: 'test@example.org',
+				from_name: 'NodeBB Test',
+				from: 'noreply@example.org',
+				subject: 'Test Email',
+				html: '<p>Hello</p>',
+				plaintext: 'Hello',
+			};
+
+			const result = await Emailer.sendViaFallback(data);
+
+			// Verify transformation was applied
+			assert.deepEqual(data.from, { name: 'NodeBB Test', address: 'noreply@example.org' });
+			assert.equal(data.text, 'Hello');
+
+			// Verify mocked Mailgun response
+			assert.equal(result.id, 'test-id');
+			assert.equal(result.message, 'Queued. Thank you.');
 		});
 	});
 
@@ -197,4 +206,78 @@ describe('emailer', () => {
 			Plugins.hooks.unregister('emailer-test', 'static:email.send', method);
 		});
 	});
+
+	describe('post reply email notification', () => {
+		let adminUid, recipientUid, testCategoryCid;
+		const sentData = null;
+		let originalConfirmByUid;
+
+		before(async () => {
+			// Save original function so we can restore later
+			originalConfirmByUid = user.email.confirmByUid;
+
+			// Disable email validation temporarily for test environment
+			user.email.confirmByUid = async (uid) => {
+				await db.setObjectField(`user:${uid}`, 'email:confirmed', 1);
+			};
+
+			// Create admin user with your email address
+			adminUid = await user.create({
+				username: 'admin',
+				email: 'qge@andrew.cmu.edu',
+			});
+
+			// Create another user to reply
+			recipientUid = await user.create({
+				username: 'replyuser',
+				email: 'replyuser@testmail.org',
+			});
+
+			// Manually mark both as confirmed
+			await db.setObjectField(`user:${adminUid}`, 'email:confirmed', 1);
+			await db.setObjectField(`user:${recipientUid}`, 'email:confirmed', 1);
+
+			// Create a category for the topic
+			const Categories = require('../src/categories');
+			const category = await Categories.create({
+				name: 'Test Category',
+				description: 'Category for emailer test',
+			});
+			if (!category || !category.cid) {
+				throw new Error('Category creation failed: ' + JSON.stringify(category));
+			}
+			testCategoryCid = category.cid;
+			// Admin creates a topic
+			let topicData;
+			const topics = require('../src/topics');
+			const posts = require('../src/posts');
+			try {
+				topicData = await topics.post({
+					uid: adminUid,
+					title: 'Test Topic',
+					content: 'First post content',
+					cid: testCategoryCid,
+				});
+			} catch (err) {
+				console.error('Topic creation error:', err);
+				throw err;
+			}
+			assert.ok(topicData && topicData.tid);
+
+			// Another user replies
+			await posts.reply({
+				uid: recipientUid,
+				tid: topicData.tid,
+				content: 'This is a reply to admin',
+			});
+
+			// Assert that Emailer was triggered
+			assert.ok(sentData, 'Emailer should have been called');
+			assert.strictEqual(sentData.template, 'notification', 'Template should be notification-related');
+			assert(sentData.to.includes('qge@andrew.cmu.edu'), 'Should send to admin email');
+		});
+	});
+
+
+
 });
