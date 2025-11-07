@@ -456,16 +456,17 @@ async function canSeeVotes(uid, cids, type) {
 		privileges.users.isModerator(uid, cids),
 	]);
 	const cidToAllowed = _.zipObject(uniqCids, canRead);
-	const checks = cids.map(
-		(cid, index) => isAdmin || isMod[index] ||
-		(
-			cidToAllowed[cid] &&
-			(
-				meta.config[type] === 'all' ||
-				(meta.config[type] === 'loggedin' && parseInt(uid, 10) > 0)
-			)
-		)
-	);
+
+	const configValue = meta && meta.config ? meta.config[type] : undefined;
+	const forAllUsers = configValue === 'all';
+	const forLoggedInUsers = configValue === 'loggedin';
+	const userIsLoggedIn = Number.isFinite(Number(uid)) && Number(uid) > 0;
+	const configAllowsView = forAllUsers || (forLoggedInUsers && userIsLoggedIn);
+	const checks = cids.map((cid, index) => {
+		const hasPriv = cidToAllowed[cid];
+		const modAtIndex = isMod[index];
+		return isAdmin || modAtIndex || (hasPriv && configAllowsView);
+	});
 	return isArray ? checks : checks[0];
 }
 
@@ -669,3 +670,22 @@ async function sendQueueNotification(type, targetUid, path, notificationText) {
 	const notifObj = await notifications.create(notifData);
 	await notifications.push(notifObj, [targetUid]);
 }
+
+postsAPI.translate = async function (caller, data) {
+	// Verify that the post exists and user has permission to read it
+	const userPrivileges = await privileges.posts.get([data.pid], caller.uid);
+	const userPrivilege = userPrivileges[0];
+	if (!userPrivilege['topics:read']) {
+		throw new Error('[[error:no-privileges]]');
+	}
+
+	// For now, return a hardcoded English translation response
+	// This will be replaced with actual LLM integration in the implementation phase
+	const preview = data.text.substring(0, 50);
+	
+	// Return hardcoded response for checkpoint
+	return {
+		translatedText: `[Hardcoded English translation of: "${preview}${data.text.length > 50 ? '...' : ''}"]`,
+		targetLanguage: 'en',
+	};
+};
